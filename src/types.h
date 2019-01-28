@@ -1,15 +1,15 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  ShashChess, a UCI chess playing engine derived from Stockfish
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
-  Stockfish is free software: you can redistribute it and/or modify
+  ShashChess is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  ShashChess is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -250,6 +250,37 @@ enum File : int {
 enum Rank : int {
   RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, RANK_NB
 };
+
+//Shashin section
+
+//For tactical
+enum {
+  SHASHIN_KING_SAFE_DEFAULT = 1,SHASHIN_KING_SAFE_MAX_INIT = 2,SHASHIN_KING_SAFE_MAX = 5,SHASHIN_KING_SAFE_SCORE_THRESHOLD_MIN = 70,
+  SHASHIN_SCORE_KING_SAFE_RATE = 70, SHASHIN_MAX_SCORE_KING_SAFE = 350 };
+//For LMR
+enum {
+  SHASHIN_MAX_LMR = 10, SHASHIN_MIN_LMR = 3, SHASHIN_MIDDLE_LMR = 7, MLR2 = 170, MLR3 = 10
+};
+//End LMR
+//Various contempt to adapt eventually
+enum {
+  SHASHIN_DEFAULT_CONTEMPT = 0, SHASHIN_PETROSIAN_CONTEMPT = -30, SHASHIN_CAPABLANCA_CONTEMPT = 0, SHASHIN_CAPABLANCA_PETROSIAN_CONTEMPT = -15,
+  SHASHIN_TAL_CONTEMPT = 30, SHASHIN_TAL_PETROSIAN_CONTEMPT = -15, SHASHIN_TAL_CAPABLANCA_CONTEMPT = 15, SHASHIN_TAL_CAPABLANCA_PETROSIAN_CONTEMPT = 0,
+  SHASHIN_MAX_SCORE = 140, SHASHIN_MIDDLE_HIGH_SCORE = 70, SHASHIN_MIDDLE_LOW_SCORE=25, scoreScale = 70};
+//Positions-algorithms types
+enum {
+  SHASHIN_POSITION_DEFAULT, SHASHIN_POSITION_PETROSIAN, SHASHIN_POSITION_CAPABLANCA, SHASHIN_POSITION_CAPABLANCA_PETROSIAN,
+  SHASHIN_POSITION_TAL,SHASHIN_POSITION_TAL_PETROSIAN,SHASHIN_POSITION_TAL_CAPABLANCA,SHASHIN_POSITION_TAL_CAPABLANCA_PETROSIAN
+};
+//thresholds to adapt eventually
+/*
+ * -25 25 =   => -35 15 35
+ * -70 70 leggero (s)vantaggio  => -80 70 80
+ * -140 140 (s)vantaggio => -150 140 150
+ * */
+enum { SHASHIN_TAL_THRESHOLD = 35, SHASHIN_CAPABLANCA_THRESHOLD = 15 };
+
+//End Shashin section
 
 
 /// Score enum stores a middlegame and an endgame value in a single integer (enum).

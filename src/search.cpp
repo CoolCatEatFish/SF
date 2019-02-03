@@ -253,12 +253,12 @@ void MainThread::search() {
   tal=Options["Tal"];
   capablanca=Options["Capablanca"];
   petrosian=Options["Petrosian"];
-  pawnsPiecesSpaceToEvaluate = !limitStrength || (limitStrength && uciElo >= 2000);
-  passedPawnsToEvaluate =!limitStrength || (limitStrength && uciElo>=2200);
-  initiativeToEvaluate=!limitStrength || (limitStrength && uciElo>=2400);
-  skillLevel=limitStrength ? ((int)((uciElo-1500)/65)):20;
+  pawnsPiecesSpaceToEvaluate = uciElo >= 2000;
+  passedPawnsToEvaluate = uciElo>=2200;
+  initiativeToEvaluate= uciElo>=2400;
+  skillLevel= ((int)((uciElo-1500)/65));
   //end from Shashin
-  
+
   if (rootMoves.empty())
   {
       rootMoves.emplace_back(MOVE_NONE);
@@ -281,24 +281,11 @@ void MainThread::search() {
       }
       else
       {
-	  if (limitStrength)
-	  {
-		  std::mt19937 gen(now());
-		  std::uniform_int_distribution<int> dis(-33, 33);
-		  int rand = dis(gen);
-		  uciElo += rand;
-		  int NodesToSearch   = pow(1.005958946,(((uciElo)/1500) - 1 )
-									+ (uciElo - 1500)) * 32 ;
-		  Limits.nodes = NodesToSearch;
+          for (Thread* th : Threads)
+              if (th != this)
+                  th->start_searching();
 
-		  Limits.nodes *= std::max(1,((int)(Time.optimum()))/1000 );
-		  std::this_thread::sleep_for (std::chrono::seconds(((int)(Time.optimum()))/1000) * (1 - Limits.nodes/724000));
-	  }
-	  for (Thread* th : Threads)
-	      if (th != this)
-		  th->start_searching();
-
-	  Thread::search(); // Let's start searching!
+          Thread::search(); // Let's start searching!
       }
   }
   //end from BrainFish
@@ -630,7 +617,7 @@ void Thread::search() {
   if (deepAnalysisMode) multiPV = size_t(pow(2, deepAnalysisMode));//from Sugar
   // When playing with strength handicap enable MultiPV search that we will
   // use behind the scenes to retrieve a set of possible moves.
-  if (skill.enabled())
+  if (skill.enabled() && limitStrength)
       multiPV = std::max(multiPV, (size_t)4);
 
   multiPV = std::min(multiPV, rootMoves.size());
@@ -652,14 +639,7 @@ void Thread::search() {
                           : -make_score(ct, ct / 2));
 
   // Iterative deepening loop until requested to stop or the target depth is reached
-  //handicap mode from Sugar
-  int depthByELo=MAX_PLY-1;
-  if(uciElo < 2800){
-      depthByELo=(((MAX_PLY-2)/1300)*uciElo)+((43-15*MAX_PLY)/13);
-  }
-  //end handicap mode from Sugar
   while (   (rootDepth += ONE_PLY) < DEPTH_MAX
-	     && rootDepth <= depthByELo  //for handicap mod: Sugar
          && !Threads.stop
          && !(Limits.depth && mainThread && rootDepth / ONE_PLY > Limits.depth))
   {
@@ -803,7 +783,7 @@ void Thread::search() {
           continue;
 
       // If skill level is enabled and time is up, pick a sub-optimal best move
-      if (skill.enabled() && skill.time_to_pick(rootDepth))
+      if (skill.enabled() && skill.time_to_pick(rootDepth) && limitStrength)
           skill.pick_best(multiPV);
 
       // Do we have time for the next iteration? Can we stop searching now?
@@ -848,7 +828,7 @@ void Thread::search() {
   mainThread->previousTimeReduction = timeReduction;
 
   // If skill level is enabled, swap best PV line with the sub-optimal one
-  if (skill.enabled())
+  if (skill.enabled() && limitStrength)
       std::swap(rootMoves[0], *std::find(rootMoves.begin(), rootMoves.end(),
                 skill.best ? skill.best : skill.pick_best(multiPV)));
 }
@@ -1042,9 +1022,9 @@ namespace {
 		if (!excludedMove && useExp)
 		{
 			Node node = get_node(posKey);
-			Child child;
 			if (node!=nullptr)
 			{
+				Child child = node->child[0];
 				if (node->hashkey == posKey)
 				{
 					bool ttMovehave = false;
@@ -1208,17 +1188,15 @@ namespace {
 		}
 		else
 		{
-			if ((ss - 1)->currentMove != MOVE_NULL)
+			if ((ss-1)->currentMove != MOVE_NULL)
 			{
-				int p = (ss - 1)->statScore;
-				int bonus = p > 0 ? (-p - 2500) / 512 :
-					p < 0 ? (-p + 2500) / 512 : 0;
+				int bonus = -(ss-1)->statScore / 512;
 
-				pureStaticEval = evaluate(pos);
-				ss->staticEval = eval = pureStaticEval + bonus;
+            	pureStaticEval = evaluate(pos);
+            	ss->staticEval = eval = pureStaticEval + bonus;
 			}
 			else{
-			    ss->staticEval = eval = pureStaticEval = -(ss - 1)->staticEval + 2 * Eval::Tempo;
+			    ss->staticEval = eval = pureStaticEval = -(ss-1)->staticEval + 2 * Eval::Tempo;
 			}
 			tte->save(posKey, VALUE_NONE, pvHit, BOUND_NONE, DEPTH_NONE, MOVE_NONE, pureStaticEval);
 		}
@@ -1338,7 +1316,6 @@ namespace {
         tte = TT.probe(posKey, ttHit);
         ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
         ttMove = ttHit ? tte->move() : MOVE_NONE;
-        pvHit = ttHit && tte->pv_hit();
     }
 
 moves_loop: // When in check, search starts from here
@@ -1352,12 +1329,7 @@ moves_loop: // When in check, search starts from here
                                       countermove,
                                       ss->killers);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
-	//kellykyniama mcts begin
-	if(mcts)
-	{
-		SE = false; 
-	}
-	//kellykyniama mcts end
+
     skipQuiets = false;
     ttCapture = ttMove && pos.capture_or_promotion(ttMove);
 
@@ -1439,11 +1411,13 @@ moves_loop: // When in check, search starts from here
           else if (cutNode && singularBeta > beta)
               return beta;
       }
-      else if (    givesCheck // Check extension (~2 Elo)
-               &&  pos.see_ge(move))
+
+      // Check extension (~2 Elo)
+      else if (    givesCheck
+               && (pos.blockers_for_king(~us) & from_sq(move) || pos.see_ge(move)))
           extension = ONE_PLY;
 
-      // Extension if castling
+      // Castling extension
       else if (type_of(move) == CASTLING)
           extension = ONE_PLY;
 

@@ -129,7 +129,7 @@ struct Child
 	Move move;
 	Depth depth;
 	Value score;
-	int Visits;
+	int visits;
 };
 
 struct NodeInfo

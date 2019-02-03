@@ -285,7 +285,7 @@ void mctsInsert(ExpEntry tempExpEntry)
 					node->child[x].move = tempExpEntry.move;
 					node->child[x].depth = tempExpEntry.depth;
 					node->child[x].score = tempExpEntry.score;
-					node->child[x].Visits++;
+					node->child[x].visits++;
 					//	node->sons++;
 					node->totalVisits++;
 					break;
@@ -296,7 +296,7 @@ void mctsInsert(ExpEntry tempExpEntry)
 				node->child[node->sons].move = tempExpEntry.move;
 				node->child[node->sons].depth = tempExpEntry.depth;
 				node->child[node->sons].score = tempExpEntry.score;
-				node->child[node->sons].Visits++;
+				node->child[node->sons].visits++;
 				node->sons++;
 				node->totalVisits++;
 			}
@@ -320,7 +320,7 @@ void mctsInsert(ExpEntry tempExpEntry)
 		infos.child[0].move = MOVE_NONE;
 		infos.child[0].depth = DEPTH_NONE;
 		infos.child[0].score = VALUE_NONE;
-		infos.child[0].Visits = 0;
+		infos.child[0].visits = 0;
 		std::memset(infos.child, 0, sizeof(Child) * 20);
 
 		infos.hashkey = tempExpEntry.hashkey;        // Zobrist hash of pawns
@@ -329,7 +329,7 @@ void mctsInsert(ExpEntry tempExpEntry)
 		infos.child[0].move = tempExpEntry.move;
 		infos.child[0].depth = tempExpEntry.depth;
 		infos.child[0].score = tempExpEntry.score;
-		infos.child[0].Visits = 1;       // number of sons expanded by the Monte-Carlo algorithm
+		infos.child[0].visits = 1;       // number of sons expanded by the Monte-Carlo algorithm
 										 //infos.lastMove = MOVE_NONE; // the move between the parent and this node
 
 										 //debug << "inserting into the hash table: key = " << key1 << endl;

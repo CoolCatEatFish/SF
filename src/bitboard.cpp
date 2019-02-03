@@ -24,7 +24,7 @@
 #include "misc.h"
 
 uint8_t PopCnt16[1 << 16];
-int SquareDistance[SQUARE_NB][SQUARE_NB];
+int8_t SquareDistance[SQUARE_NB][SQUARE_NB];
 
 Bitboard SquareBB[SQUARE_NB];
 Bitboard FileBB[FILE_NB];
@@ -296,7 +296,7 @@ void Bitboards::init() {
                   }
               }
 
-  Direction RookDirections[] = { NORTH,  EAST,  SOUTH,  WEST };
+  Direction RookDirections[] = { NORTH, EAST, SOUTH, WEST };
   Direction BishopDirections[] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 
   if (HasPext)

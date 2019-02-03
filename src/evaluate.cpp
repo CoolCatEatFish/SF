@@ -121,8 +121,8 @@ namespace {
 
   // Penalties for enemy's safe checks
   constexpr int QueenSafeCheck  = 780;
-  constexpr int RookSafeCheck   = 880;
-  constexpr int BishopSafeCheck = 435;
+  constexpr int RookSafeCheck   = 1080;
+  constexpr int BishopSafeCheck = 635;
   constexpr int KnightSafeCheck = 790;
 
 #define S(mg, eg) make_score(mg, eg)
@@ -462,24 +462,38 @@ namespace {
     b1 = attacks_bb<ROOK  >(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
     b2 = attacks_bb<BISHOP>(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
 
-    // Enemy queen safe checks
-    if ((b1 | b2) & attackedBy[Them][QUEEN] & safe & ~attackedBy[Us][QUEEN])
-        kingDanger += QueenSafeCheck;
-
-    b1 &= attackedBy[Them][ROOK];
-    b2 &= attackedBy[Them][BISHOP];
-
     // Enemy rooks checks
-    if (b1 & safe)
+    Bitboard RookCheck =  b1
+                        & safe
+                        & attackedBy[Them][ROOK];
+
+    if (RookCheck)
         kingDanger += RookSafeCheck;
     else
-        unsafeChecks |= b1;
+        unsafeChecks |= b1 & attackedBy[Them][ROOK];
 
-    // Enemy bishops checks
-    if (b2 & safe)
+    // Enemy queen safe checks: we count them only if they are from squares from
+    // which we can't give a rook check, because rook checks are more valuable.
+    Bitboard QueenCheck =  (b1 | b2)
+                         & attackedBy[Them][QUEEN]
+                         & safe
+                         & ~attackedBy[Us][QUEEN]
+                         & ~RookCheck;
+
+    if (QueenCheck)
+        kingDanger += QueenSafeCheck;
+
+    // Enemy bishops checks: we count them only if they are from squares from
+    // which we can't give a queen check, because queen checks are more valuable.
+    Bitboard BishopCheck =  b2 
+                          & attackedBy[Them][BISHOP]
+                          & safe
+                          & ~QueenCheck;
+
+    if (BishopCheck)
         kingDanger += BishopSafeCheck;
     else
-        unsafeChecks |= b2;
+        unsafeChecks |= b2 & attackedBy[Them][BISHOP];
 
     // Enemy knights checks
     b = pos.attacks_from<KNIGHT>(ksq) & attackedBy[Them][KNIGHT];
@@ -496,7 +510,7 @@ namespace {
                  +  69 * kingAttacksCount[Them]
                  + 185 * popcount(kingRing[Us] & weak)
                  + 150 * popcount(pos.blockers_for_king(Us) | unsafeChecks)
-                 +       tropism * tropism / 4
+                 +   5 * tropism * tropism / 16
                  - 873 * !pos.count<QUEEN>(Them)
                  -   6 * mg_value(score) / 8
                  +       mg_value(mobility[Them] - mobility[Us])
@@ -875,13 +889,13 @@ namespace {
     // the position object (material + piece square tables) and the material
     // imbalance. Score is computed internally from the white point of view.
     Score score =   apply_weight(pos.psq_score(), weightsMG[MATERIAL_POS],weightsEG[MATERIAL_POS]) + apply_weight(me->imbalance(),weightsMG[IMBALANCE_POS],weightsEG[IMBALANCE_POS]) + pos.this_thread()->contempt;
-    // Probe the pawn hash table
-    pe = Pawns::probe(pos);
-	//from Shashin
+    //from Shashin
     if (pawnsPiecesSpaceToEvaluate){
-      score += apply_weight(pe->pawn_score(WHITE) - pe->pawn_score(BLACK),weightsMG[PAWN_STRUCTURE_POS],weightsEG[PAWN_STRUCTURE_POS]);   
+	// Probe the pawn hash table
+	pe = Pawns::probe(pos);
+	score += apply_weight(pe->pawn_score(WHITE) - pe->pawn_score(BLACK),weightsMG[PAWN_STRUCTURE_POS],weightsEG[PAWN_STRUCTURE_POS]);
     }
-	//end from Shashin
+    //end from Shashin
     // Early exit if score is high
     Value v = (mg_value(score) + eg_value(score)) / 2;
     if (abs(v) > LazyThreshold)
@@ -894,11 +908,12 @@ namespace {
 
   // Pieces should be evaluated first (populate attack tables)
   //from Shashin
+    Score piecesScore = apply_weight(pieces<WHITE, KNIGHT>() - pieces<BLACK, KNIGHT>()
+				      + pieces<WHITE, BISHOP>() - pieces<BLACK, BISHOP>()
+				      + pieces<WHITE, ROOK  >() - pieces<BLACK, ROOK  >()
+				      + pieces<WHITE, QUEEN >() - pieces<BLACK, QUEEN >(),weightsMG[PIECES_POS],weightsEG[PIECES_POS]);
     if(pawnsPiecesSpaceToEvaluate){
-      score +=  apply_weight(pieces<WHITE, KNIGHT>() - pieces<BLACK, KNIGHT>()
-	      + pieces<WHITE, BISHOP>() - pieces<BLACK, BISHOP>()
-	      + pieces<WHITE, ROOK  >() - pieces<BLACK, ROOK  >()
-	      + pieces<WHITE, QUEEN >() - pieces<BLACK, QUEEN >(),weightsMG[PIECES_POS],weightsEG[PIECES_POS]);
+      score +=  piecesScore;
     }
     score += apply_weight(mobility[WHITE] - mobility[BLACK],weightsMG[MOBILITY_POS],weightsEG[MOBILITY_POS]);
     score +=  apply_weight(king<   WHITE>() - king<   BLACK>(),weightsMG[KING_SAFETY_POS],weightsEG[KING_SAFETY_POS]); //from Sugar

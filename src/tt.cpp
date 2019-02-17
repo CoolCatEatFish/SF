@@ -1,15 +1,15 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  ShashChess, a UCI chess playing engine derived from Stockfish
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
-  Stockfish is free software: you can redistribute it and/or modify
+  ShashChess is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  ShashChess is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -21,12 +21,22 @@
 #include <cstring>   // For std::memset
 #include <iostream>
 #include <thread>
+#include <fstream> //from kellykynyama mcts
+
 
 #include "bitboard.h"
 #include "misc.h"
 #include "thread.h"
 #include "tt.h"
 #include "uci.h"
+
+//from kellykynyama begin
+using namespace std;
+
+TranspositionTable EXP; // Our global transposition table
+
+MCTSHashTable MCTS;
+//from kellykynyama end
 
 TranspositionTable TT; // Our global transposition table
 
@@ -156,3 +166,217 @@ int TranspositionTable::hashfull() const {
 
   return cnt * 1000 / (ClusterSize * (1000 / ClusterSize));
 }
+
+//kellyKinyama mcts begin
+void EXPresize() {
+
+	ifstream myFile("experience.bin", ios::in | ios::binary);
+
+
+	int load = 1;
+	while (load)
+	{
+		ExpEntry tempExpEntry;
+		tempExpEntry.depth = Depth(0);
+		tempExpEntry.hashkey = 0;
+		tempExpEntry.move = Move(0);
+		tempExpEntry.score = Value(0);
+
+		myFile.read((char*)&tempExpEntry, sizeof(tempExpEntry));
+
+		if (tempExpEntry.hashkey)
+		{
+
+			mctsInsert(tempExpEntry);
+		}
+		else
+			load = 0;
+
+
+
+		if (!tempExpEntry.hashkey)
+			load = 0;
+	}
+	myFile.close();
+
+}
+void EXPawnresize() {
+
+	ifstream myFile("pawngame.bin", ios::in | ios::binary);
+
+
+	int load = 1;
+	while (load)
+	{
+		ExpEntry tempExpEntry;
+		tempExpEntry.depth = Depth(0);
+		tempExpEntry.hashkey = 0;
+		tempExpEntry.move = Move(0);
+		tempExpEntry.score = Value(0);
+
+		myFile.read((char*)&tempExpEntry, sizeof(tempExpEntry));
+
+		if (tempExpEntry.hashkey)
+		{
+			mctsInsert(tempExpEntry);
+		}
+		else
+			load = 0;
+
+
+		if (!tempExpEntry.hashkey)
+			load = 0;
+	}
+	myFile.close();
+
+}
+void EXPload(char* fen)
+{
+
+	ifstream myFile(fen, ios::in | ios::binary);
+
+
+
+
+	int load = 1;
+
+	while (load)
+	{
+		ExpEntry tempExpEntry;
+		tempExpEntry.depth = Depth(0);
+		tempExpEntry.hashkey = 0;
+		tempExpEntry.move = Move(0);
+		tempExpEntry.score = Value(0);
+		myFile.read((char*)&tempExpEntry, sizeof(tempExpEntry));
+
+		if (tempExpEntry.hashkey)
+		{
+			mctsInsert(tempExpEntry);
+		}
+		load = 0;
+
+
+		if (!tempExpEntry.hashkey)
+			load = 0;
+	}
+	myFile.close();
+}
+
+void mctsInsert(ExpEntry tempExpEntry)
+{
+	// If the node already exists in the hash table, we want to return it.
+	// We search in the range of all the hash table entries with key "key1".
+	auto range = MCTS.equal_range(tempExpEntry.hashkey);
+	auto it1 = range.first;
+	auto it2 = range.second;
+
+	bool newNode = true;
+	while (it1 != it2)
+	{
+		Node node = &(it1->second);
+
+		if (node->hashkey == tempExpEntry.hashkey)
+		{
+			bool newChild = true;
+			newNode = false;
+			for (int x = 0; x < node->sons; x++)
+			{
+				if (node->child[x].move == tempExpEntry.move)
+				{
+					newChild = false;
+					node->child[x].move = tempExpEntry.move;
+					node->child[x].depth = tempExpEntry.depth;
+					node->child[x].score = tempExpEntry.score;
+					node->child[x].visits++;
+					//	node->sons++;
+					node->totalVisits++;
+					break;
+				}
+			}
+			if (newChild && node->sons < MAX_CHILDREN)
+			{
+				node->child[node->sons].move = tempExpEntry.move;
+				node->child[node->sons].depth = tempExpEntry.depth;
+				node->child[node->sons].score = tempExpEntry.score;
+				node->child[node->sons].visits++;
+				node->sons++;
+				node->totalVisits++;
+			}
+
+
+
+		}
+
+		it1++;
+	}
+
+	if (newNode)
+	{
+		// Node was not found, so we have to create a new one
+		NodeInfo infos;
+
+		infos.hashkey = 0;        // Zobrist hash of pawns
+		infos.sons = 0;
+
+		infos.totalVisits = 0;// number of visits by the Monte-Carlo algorithm
+		infos.child[0].move = MOVE_NONE;
+		infos.child[0].depth = DEPTH_NONE;
+		infos.child[0].score = VALUE_NONE;
+		infos.child[0].visits = 0;
+		std::memset(infos.child, 0, sizeof(Child) * 20);
+
+		infos.hashkey = tempExpEntry.hashkey;        // Zobrist hash of pawns
+		infos.sons = 1;       // number of visits by the Monte-Carlo algorithm
+		infos.totalVisits = 1;
+		infos.child[0].move = tempExpEntry.move;
+		infos.child[0].depth = tempExpEntry.depth;
+		infos.child[0].score = tempExpEntry.score;
+		infos.child[0].visits = 1;       // number of sons expanded by the Monte-Carlo algorithm
+										 //infos.lastMove = MOVE_NONE; // the move between the parent and this node
+
+										 //debug << "inserting into the hash table: key = " << key1 << endl;
+
+		MCTS.insert(make_pair(tempExpEntry.hashkey, infos));
+	}
+}
+
+/// get_node() probes the Monte-Carlo hash table to find the node with the given
+/// position, creating a new entry if it doesn't exist yet in the table.
+/// The returned node is always valid.
+Node get_node(Key key) {
+
+
+	// If the node already exists in the hash table, we want to return it.
+	// We search in the range of all the hash table entries with key "key1".
+
+	Node mynode = nullptr;
+	auto range = MCTS.equal_range(key);
+	auto it1 = range.first;
+	auto it2 = range.second;
+
+	if (
+		it1 != MCTS.end()
+		&& 
+		it2 != MCTS.end()
+		)
+	{
+
+		mynode = &(it1->second);
+
+		while (
+			it1 != it2
+			&&
+			it1 != MCTS.end()
+			)
+		{
+			Node node = &(it1->second);
+			if (node->hashkey == key)
+				return node;
+
+			it1++;
+		}
+
+	}
+	return mynode;
+}
+//kellyKinyama mcts end

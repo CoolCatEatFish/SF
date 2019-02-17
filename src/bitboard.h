@@ -1,15 +1,15 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  ShashChess, a UCI chess playing engine derived from Stockfish
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
-  Stockfish is free software: you can redistribute it and/or modify
+  ShashChess is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  ShashChess is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -17,7 +17,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+//from BrainFish
 #ifndef BITBOARD_H_INCLUDED
 #define BITBOARD_H_INCLUDED
 
@@ -63,10 +63,15 @@ constexpr Bitboard Rank8BB = Rank1BB << (8 * 7);
 extern int8_t SquareDistance[SQUARE_NB][SQUARE_NB];
 
 extern Bitboard SquareBB[SQUARE_NB];
+extern Bitboard FileBB[FILE_NB];
+extern Bitboard RankBB[RANK_NB];
 extern Bitboard ForwardRanksBB[COLOR_NB][RANK_NB];
 extern Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
 extern Bitboard LineBB[SQUARE_NB][SQUARE_NB];
 extern Bitboard DistanceRingBB[SQUARE_NB][8];
+extern Bitboard ForwardFileBB[COLOR_NB][SQUARE_NB];
+extern Bitboard PassedPawnMask[COLOR_NB][SQUARE_NB];
+extern Bitboard PawnAttackSpan[COLOR_NB][SQUARE_NB];
 extern Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 extern Bitboard PawnAttacks[COLOR_NB][SQUARE_NB];
 
@@ -76,20 +81,17 @@ struct Magic {
   Bitboard  mask;
   Bitboard  magic;
   Bitboard* attacks;
-  unsigned  shift;
 
   // Compute the attack's index using the 'magic bitboards' approach
+  template<PieceType Pt>
   unsigned index(Bitboard occupied) const {
 
     if (HasPext)
         return unsigned(pext(occupied, mask));
 
-    if (Is64Bit)
-        return unsigned(((occupied & mask) * magic) >> shift);
+    unsigned shift = 64 - (Pt == ROOK ? 12 : 9);
 
-    unsigned lo = unsigned(occupied) & unsigned(mask);
-    unsigned hi = unsigned(occupied >> 32) & unsigned(mask >> 32);
-    return (lo * unsigned(magic) ^ hi * unsigned(magic >> 32)) >> shift;
+    return unsigned(((occupied & mask) * magic) >> shift);
   }
 };
 
@@ -137,23 +139,23 @@ inline bool opposite_colors(Square s1, Square s2) {
 /// the given file or rank.
 
 inline Bitboard rank_bb(Rank r) {
-  return Rank1BB << (8 * r);
+  return RankBB[r];
 }
 
 inline Bitboard rank_bb(Square s) {
-  return rank_bb(rank_of(s));
+  return RankBB[rank_of(s)];
 }
 
 inline Bitboard file_bb(File f) {
-  return FileABB << f;
+  return FileBB[f];
 }
 
 inline Bitboard file_bb(Square s) {
-  return file_bb(file_of(s));
+  return FileBB[file_of(s)];
 }
 
 
-/// shift() moves a bitboard one step along direction D
+/// shift() moves a bitboard one step along direction D (mainly for pawns)
 
 template<Direction D>
 constexpr Bitboard shift(Bitboard b) {
@@ -189,8 +191,9 @@ constexpr Bitboard pawn_double_attacks_bb(Bitboard b) {
 /// adjacent files of the given one.
 
 inline Bitboard adjacent_files_bb(File f) {
-  return shift<EAST>(file_bb(f)) | shift<WEST>(file_bb(f));
+  return shift<EAST>(FileBB[f]) | shift<WEST>(FileBB[f]);
 }
+
 
 /// between_bb() returns a bitboard representing all the squares between the two
 /// given ones. For instance, between_bb(SQ_C4, SQ_F7) returns a bitboard with
@@ -216,24 +219,26 @@ inline Bitboard forward_ranks_bb(Color c, Square s) {
 ///      ForwardFileBB[c][s] = forward_ranks_bb(c, s) & file_bb(s)
 
 inline Bitboard forward_file_bb(Color c, Square s) {
-  return ForwardRanksBB[c][rank_of(s)] & file_bb(s);
+  return ForwardFileBB[c][s];
 }
 
 
 /// pawn_attack_span() returns a bitboard representing all the squares that can be
 /// attacked by a pawn of the given color when it moves along its file, starting
 /// from the given square:
+///      PawnAttackSpan[c][s] = forward_ranks_bb(c, s) & adjacent_files_bb(file_of(s));
 
 inline Bitboard pawn_attack_span(Color c, Square s) {
-  return forward_ranks_bb(c, s) & adjacent_files_bb(file_of(s));
+  return PawnAttackSpan[c][s];
 }
 
 
 /// passed_pawn_mask() returns a bitboard mask which can be used to test if a
 /// pawn of the given color and on the given square is a passed pawn:
+///      PassedPawnMask[c][s] = pawn_attack_span(c, s) | forward_file_bb(c, s)
 
 inline Bitboard passed_pawn_mask(Color c, Square s) {
-  return pawn_attack_span(c, s) | forward_file_bb(c, s);
+  return PassedPawnMask[c][s];
 }
 
 
@@ -263,7 +268,7 @@ template<PieceType Pt>
 inline Bitboard attacks_bb(Square s, Bitboard occupied) {
 
   const Magic& m = Pt == ROOK ? RookMagics[s] : BishopMagics[s];
-  return m.attacks[m.index(occupied)];
+  return m.attacks[m.index<Pt>(occupied)];
 }
 
 inline Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
@@ -387,3 +392,4 @@ inline Square frontmost_sq(Color c, Bitboard b) { return c == WHITE ? msb(b) : l
 inline Square  backmost_sq(Color c, Bitboard b) { return c == WHITE ? lsb(b) : msb(b); }
 
 #endif // #ifndef BITBOARD_H_INCLUDED
+//end from BrainFish

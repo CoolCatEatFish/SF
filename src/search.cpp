@@ -329,6 +329,35 @@ void Thread::search() {
   contempt = (us == WHITE ?  make_score(ct, ct / 2)
                           : -make_score(ct, ct / 2));
 
+if(!Options["MagicTacticSolver"]){
+MagicTacticSolver = 1;}
+else if(Options["MagicTacticSolver"]){
+MagicTacticSolver = 1/1000;}
+
+if(MagicTacticSolver == 1/1000){
+kgA = 1/100;
+thB = 100;}
+else if(MagicTacticSolver == 1){
+kgA = 1;
+thB = 1;}
+
+int pehh = int(Options["Pawn Exchange"])/16;
+int kehh = int(Options["Knight Exchange"])/4;
+int behh = int(Options["Bishop Exchange"])/4;
+int rehh = int(Options["Rook Exchange"])/4;
+int qehh = int(Options["Queen Exchange"])/2;
+
+Pex = (us == WHITE ?  make_score(pehh, pehh / 2)
+                   : -make_score(pehh, pehh / 2));
+Kex = (us == WHITE ?  make_score(kehh, kehh / 2)
+                   : -make_score(kehh, kehh / 2));
+Bex = (us == WHITE ?  make_score(behh, behh / 2)
+                   : -make_score(behh, behh / 2));
+Rex = (us == WHITE ?  make_score(rehh, rehh / 2)
+                   : -make_score(rehh, rehh / 2));
+Qex = (us == WHITE ?  make_score(qehh, qehh / 2)
+                   : -make_score(qehh, qehh / 2));
+
   // Iterative deepening loop until requested to stop or the target depth is reached
   while (   (rootDepth += ONE_PLY) < DEPTH_MAX
          && !Threads.stop

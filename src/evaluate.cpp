@@ -153,6 +153,7 @@ namespace {
   constexpr Score TrappedRook        = S( 47,  4);
   constexpr Score WeakQueen          = S( 49, 15);
   constexpr Score WeakUnopposedPawn  = S( 12, 23);
+  constexpr Score Exchange           = S(  1,  0);
 
 #undef S
 
@@ -486,7 +487,7 @@ namespace {
     if (T)
         Trace::add(KING, Us, score);
 
-    return score;
+    return score * pos.this_thread()->kgA;
   }
 
 
@@ -575,7 +576,7 @@ namespace {
 
     b = pawn_attacks_bb<Us>(b) & nonPawnEnemies;
     score += ThreatBySafePawn * popcount(b);
-
+ 
     // Bonus for threats on the next moves against enemy queen
     if (pos.count<QUEEN>(Them) == 1)
     {
@@ -595,7 +596,7 @@ namespace {
     if (T)
         Trace::add(THREAT, Us, score);
 
-    return score;
+    return score * pos.this_thread()->thB;
   }
 
   // Evaluation::passed() evaluates the passed pawns and candidate passed
@@ -743,12 +744,12 @@ namespace {
                             && (pos.pieces(PAWN) & KingSide);
 
     // Compute the initiative bonus for the attacking side
-    int complexity =   9 * pe->passed_count()
+    int complexity =   9 * pe->pawn_asymmetry()
                     + 11 * pos.count<PAWN>()
                     +  9 * outflanking
                     + 18 * pawnsOnBothFlanks
                     + 49 * !pos.non_pawn_material()
-                    -103 ;
+                    -121 ;
 
     // Now apply the bonus: note that we find the attacking side by extracting
     // the sign of the endgame value, and that we carefully cap the bonus so
@@ -776,7 +777,7 @@ namespace {
         if (   pos.opposite_bishops()
             && pos.non_pawn_material(WHITE) == BishopValueMg
             && pos.non_pawn_material(BLACK) == BishopValueMg)
-            sf = 16 + 4 * pe->passed_count();
+            sf = 8 + 4 * pe->pawn_asymmetry();
         else
             sf = std::min(40 + (pos.opposite_bishops() ? 2 : 7) * pos.count<PAWN>(strongSide), sf);
 
@@ -806,7 +807,7 @@ namespace {
     // Initialize score by reading the incrementally updated scores included in
     // the position object (material + piece square tables) and the material
     // imbalance. Score is computed internally from the white point of view.
-    Score score = pos.psq_score() + me->imbalance() + pos.this_thread()->contempt;
+    Score score = pos.psq_score() * pos.this_thread()->MagicTacticSolver + me->imbalance() + pos.this_thread()->contempt;
 
     // Probe the pawn hash table
     pe = Pawns::probe(pos);
@@ -836,6 +837,20 @@ namespace {
             + space<  WHITE>() - space<  BLACK>();
 
     score += initiative(eg_value(score));
+
+//exchange tune
+
+int Pus = 16 - pos.count<PAWN>();
+int Kus = 4 - pos.count<KNIGHT>();
+int Bus = 4 - pos.count<BISHOP>();
+int Rus = 4 - pos.count<ROOK>();
+int Qus = 2 - pos.count<QUEEN>();
+
+score += pos.this_thread()->Pex * Pus;
+score += pos.this_thread()->Kex * Kus;
+score += pos.this_thread()->Bex * Bus;
+score += pos.this_thread()->Rex * Rus;
+score += pos.this_thread()->Qex * Qus;
 
     // Interpolate between a middlegame and a (scaled by 'sf') endgame score
     ScaleFactor sf = scale_factor(eg_value(score));

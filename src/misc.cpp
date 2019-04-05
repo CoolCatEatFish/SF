@@ -138,7 +138,7 @@ const string engine_info(bool to_uci) {
   ss << (Is64Bit ? " 64" : "")
      << (HasPext ? " BMI2" : (HasPopCnt ? " POPCNT" : ""))
      << (to_uci  ? "\nid author ": " by ")
-     << "T. Romstad, M. Costalba, J. Kiiski, G. Linscott";
+     << "Stockfish authors, modified by An.Eg.Go.";
 
   return ss.str();
 }
@@ -226,7 +226,7 @@ void bindThisThread(size_t) {}
 
 /// best_group() retrieves logical processor information using Windows specific
 /// API and returns the best group id for the thread with index idx. Original
-/// code from Texel by Peter Österlund.
+/// code from Texel by Peter Ă–sterlund.
 
 int best_group(size_t idx) {
 

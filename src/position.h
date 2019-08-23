@@ -46,6 +46,7 @@ struct StateInfo {
   Square epSquare;
 
   // Not copied when making a move (will be recomputed anyhow)
+  int repetition;
   Key        key;
   Bitboard   checkersBB;
   Piece      capturedPiece;
@@ -95,6 +96,7 @@ public:
   template<PieceType Pt> int count() const;
   template<PieceType Pt> const Square* squares(Color c) const;
   template<PieceType Pt> Square square(Color c) const;
+  bool is_on_semiopen_file(Color c, Square s) const;
 
   // Castling
   int castling_rights(Color c) const;
@@ -106,6 +108,7 @@ public:
   Bitboard checkers() const;
   Bitboard blockers_for_king(Color c) const;
   Bitboard check_squares(PieceType pt) const;
+  bool is_discovery_check_on_king(Color c, Move m) const;
 
   // Attacks to/from a given square
   Bitboard attackers_to(Square s) const;
@@ -128,6 +131,7 @@ public:
   // Piece specific
   bool pawn_passed(Color c, Square s) const;
   bool opposite_bishops() const;
+  int  pawns_on_same_color_squares(Color c, Square s) const;
 
   // Doing and undoing moves
   void do_move(Move m, StateInfo& newSt);
@@ -260,6 +264,10 @@ inline Square Position::ep_square() const {
   return st->epSquare;
 }
 
+inline bool Position::is_on_semiopen_file(Color c, Square s) const {
+  return !(pieces(c, PAWN) & file_bb(s));
+}
+
 inline bool Position::can_castle(CastlingRight cr) const {
   return st->castlingRights & cr;
 }
@@ -309,13 +317,21 @@ inline Bitboard Position::check_squares(PieceType pt) const {
   return st->checkSquares[pt];
 }
 
+inline bool Position::is_discovery_check_on_king(Color c, Move m) const {
+  return st->blockersForKing[c] & from_sq(m);
+}
+
 inline bool Position::pawn_passed(Color c, Square s) const {
   return !(pieces(~c, PAWN) & passed_pawn_span(c, s));
 }
 
 inline bool Position::advanced_pawn_push(Move m) const {
   return   type_of(moved_piece(m)) == PAWN
-        && relative_rank(sideToMove, from_sq(m)) > RANK_4;
+        && relative_rank(sideToMove, to_sq(m)) > RANK_5;
+}
+
+inline int Position::pawns_on_same_color_squares(Color c, Square s) const {
+  return popcount(pieces(c, PAWN) & ((DarkSquares & s) ? DarkSquares : ~DarkSquares));
 }
 
 inline Key Position::key() const {

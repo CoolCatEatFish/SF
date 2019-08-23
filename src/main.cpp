@@ -28,6 +28,7 @@
 #include "uci.h"
 #include "endgame.h"
 #include "syzygy/tbprobe.h"
+#include "polybook.h"
 
 namespace PSQT {
   void init();
@@ -45,6 +46,8 @@ int main(int argc, char* argv[]) {
   Endgames::init();
   Search::init();
   Threads.set(Options["Threads"]);
+  polybook.init(Options["BookFile"]);
+  polybook2.init(Options["BookFile2"]);
   Search::clear(); // After threads are up
 
   UCI::loop(argc, argv);
